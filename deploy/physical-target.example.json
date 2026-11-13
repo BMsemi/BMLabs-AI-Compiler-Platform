@@ -1,0 +1,16 @@
+{
+  "adapter": "zcu106-qwen6-fixed-overlay-v1",
+  "expected_model": "REPLACE_WITH_VERIFIED_BOARD_MODEL",
+  "host_python": "/absolute/path/to/transport-runtime/python",
+  "transport_source": "/absolute/path/to/neuromorphic/fpga.py",
+  "transport_sha256": "REPLACE_WITH_VERIFIED_SHA256",
+  "serial": {
+    "mode": "serial",
+    "port": "REPLACE_WITH_BOARD_SERIAL_PORT",
+    "baud": 115200,
+    "board_dir": "/absolute/path/to/private-board-jobs"
+  },
+  "board_python": "/absolute/path/to/board-python",
+  "asset_sha256": {},
+  "programming_enabled": false
+}

@@ -1,0 +1,102 @@
+
+`timescale 1ns/1ps
+module prototype_tb;
+reg clk=0;always #50 clk=~clk;
+reg rstn=0;
+reg [7:0] awaddr=0,araddr=0;
+reg awvalid=0,wvalid=0,bready=0,arvalid=0,rready=0;
+reg [31:0] wdata=0;
+wire awready,wready,bvalid,arready,rvalid;
+wire [1:0] bresp,rresp;wire [31:0] rdata;
+axi_fabric_shell dut(.aclk(clk),.aresetn(rstn),.s_axi_awaddr(awaddr),.s_axi_awprot(3'd0),
+ .s_axi_awvalid(awvalid),.s_axi_awready(awready),.s_axi_wdata(wdata),.s_axi_wstrb(4'hf),
+ .s_axi_wvalid(wvalid),.s_axi_wready(wready),.s_axi_bresp(bresp),.s_axi_bvalid(bvalid),.s_axi_bready(bready),
+ .s_axi_araddr(araddr),.s_axi_arprot(3'd0),.s_axi_arvalid(arvalid),.s_axi_arready(arready),
+ .s_axi_rdata(rdata),.s_axi_rresp(rresp),.s_axi_rvalid(rvalid),.s_axi_rready(rready));
+task write_reg(input [7:0] addr,input [31:0] data);
+begin
+ @(negedge clk);awaddr=addr;awvalid=1;
+ @(posedge clk);while(!awready)@(posedge clk);
+ @(negedge clk);awvalid=0;
+ // Exercise independent address/data acceptance, not only simultaneous AXI.
+ repeat(2)@(negedge clk);wdata=data;wvalid=1;
+ @(posedge clk);while(!wready)@(posedge clk);
+ @(negedge clk);wvalid=0;
+ while(!bvalid)@(negedge clk);
+ if(bresp!==0)$fatal(1,"AXI write failed addr=%h",addr);
+ repeat(2)@(negedge clk);if(!bvalid)$fatal(1,"Lost held BVALID");bready=1;
+ @(negedge clk);bready=0;
+end endtask
+task read_reg(input [7:0] addr,output [31:0] data);
+begin
+ @(negedge clk);araddr=addr;arvalid=1;
+ @(posedge clk);while(!arready)@(posedge clk);
+ @(negedge clk);arvalid=0;
+ while(!rvalid)@(negedge clk);
+ if(rresp!==0)$fatal(1,"AXI read failed");data=rdata;
+ repeat(2)@(negedge clk);if(!rvalid || data!==rdata)$fatal(1,"Read unstable under backpressure");rready=1;
+ @(negedge clk);rready=0;
+end endtask
+reg start=0;wire idle,busy,error_pulse,done;wire[7:0]error_code;
+reg [31:0] indata=0;reg invalid=0,inlast=0,outready=0;
+wire inready,outvalid,outlast;wire[31:0]outdata,rxwords,txwords,cycles;
+x2_mvm_axis_core #(.N_PE(4),.TDC_TIMING_ENABLE(0)) x2(
+ .clk(clk),.rstn(rstn),.start_pulse(start),.abort_pulse(1'b0),.cfg_rows(8'd@ROWS@),.cfg_cols(8'd@COLS@),.cfg_batch(8'd1),
+ .idle(idle),.busy(busy),.done_pulse(done),.error_pulse(error_pulse),.error_code(error_code),
+ .words_received(rxwords),.outputs_sent(txwords),.cycle_count(cycles),
+ .s_axis_tdata(indata),.s_axis_tvalid(invalid),.s_axis_tready(inready),.s_axis_tlast(inlast),
+ .m_axis_tdata(outdata),.m_axis_tvalid(outvalid),.m_axis_tready(outready),.m_axis_tlast(outlast));
+always @(posedge clk) if(rstn && error_pulse)$fatal(1,"X2 hardware RTL error %d",error_code);
+task send_word(input[31:0]data,input last);
+begin
+ @(negedge clk);indata=data;inlast=last;invalid=1;
+ @(posedge clk);while(!inready)@(posedge clk);
+ @(negedge clk);invalid=0;inlast=0;
+end endtask
+reg[31:0]config_words[0:4095],weights[0:@WEIGHTS_MINUS@],inputs[0:@INPUTS_MINUS@];
+reg[31:0]raw_gold[0:@OUTPUTS_MINUS@],gold[0:@OUTPUTS_MINUS@];
+reg[31:0]value,raw_value,actual,byte_value;
+integer i,j,k,v,wait_cycles,comparisons=0;
+initial begin #100000000;$fatal(1,"Co-simulation timeout");end
+initial begin
+ $display("COSIM_START time=%0t",$time);
+ $readmemh("config.hex",config_words);$readmemh("weights.hex",weights);$readmemh("inputs.hex",inputs);
+ $readmemh("raw.hex",raw_gold);$readmemh("gold.hex",gold);
+ repeat(10)@(negedge clk);rstn=1;
+ read_reg(0,value);if(value!==32'h424d4631)$fatal(1,"Shell magic");
+ $display("SHELL_MAGIC_PASSED time=%0t",$time);
+ write_reg(8,0);repeat(20)@(negedge clk);write_reg(8,1);repeat(20)@(negedge clk);
+ for(i=0;i<4096;i=i+1)begin write_reg(12,config_words[i]);if(i%512==0)$display("CONFIG_WORD %0d time=%0t",i,$time);end
+ repeat(100)@(negedge clk);
+ read_reg(16,value);if(value!==4096)$fatal(1,"Loader word count");
+ write_reg(20,32'h100);
+ for(v=0;v<@VECTORS@;v=v+1)begin
+  if(v%32==0)begin $display("MODEL_VECTOR %0d time=%0t",v,$time);$fflush();end
+  while(!idle)@(negedge clk);start=1;@(negedge clk);start=0;
+  for(i=0;i<@WEIGHTS@;i=i+1)send_word(weights[i],0);
+  for(i=0;i<@INPUT_WORDS@;i=i+1)send_word(inputs[v*@INPUT_WORDS@+i],i==@INPUT_WORDS@-1);
+  if(v==0)$display("X2_INPUTS_SENT time=%0t rx=%d state=%d",$time,rxwords,x2.state);
+  for(j=0;j<@COLS@;j=j+1)begin
+   wait_cycles=0;
+   while(!outvalid)begin @(negedge clk);wait_cycles=wait_cycles+1;if(wait_cycles>1000)$fatal(1,"X2 output timeout state=%d rx=%d",x2.state,rxwords);end
+   raw_value=outdata;if(v==0)$display("X2_OUTPUT %d raw=%h time=%0t",j,raw_value,$time);
+   if(raw_value!==raw_gold[v*@COLS@+j])$fatal(1,"X2 raw mismatch vector=%d output=%d actual=%h expected=%h",v,j,raw_value,raw_gold[v*@COLS@+j]);
+   if(outlast!==(j==@COLS@-1))$fatal(1,"X2 output TLAST mismatch");
+   outready=1;@(negedge clk);outready=0;
+   for(k=0;k<4;k=k+1)write_reg(20,32'h200|((raw_value>>(8*k))&255));
+   write_reg(20,32'h300|(j<<11));
+   if(v==0)$display("FAB_COMPUTE_SENT output=%d time=%0t",j,$time);
+   actual=0;
+   for(k=0;k<4;k=k+1)begin
+    read_reg(24,byte_value);actual=actual|((byte_value&255)<<(8*k));
+    write_reg(20,32'h400);
+   end
+   if(actual!==gold[v*@COLS@+j])$fatal(1,"FAB result mismatch vector=%d output=%d actual=%h expected=%h",v,j,actual,gold[v*@COLS@+j]);
+   comparisons=comparisons+1;
+  end
+  repeat(5)@(negedge clk);
+  if(error_code!==0 || rxwords!==@WEIGHTS@+@INPUT_WORDS@ || txwords!==@COLS@ || cycles===0)$fatal(1,"X2 transfer evidence");
+ end
+ $display("BMLABS_X2_FABRIC_COSIM_PASS comparisons=%0d vectors=@VECTORS@",comparisons);$finish;
+end
+endmodule

@@ -1,0 +1,1 @@
+{% extends 'accounts/base.html' %}{% block content %}<h2>Verify your account</h2><p>Request a fresh verification link.</p><form method="post">{% csrf_token %}{% include 'form_fields.html' %}<button class="button primary">Send verification link</button></form><p><a href="{% url 'login' %}">Back to sign in</a></p>{% endblock %}

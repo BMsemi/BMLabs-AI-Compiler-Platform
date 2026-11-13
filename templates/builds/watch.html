@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load static %}
+{% block title %}Watch walkthrough · BM Labs{% endblock %}
+{% block breadcrumb %}Build artifacts / Video{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'media-player.css' %}">
+<div class="page-heading"><div><span class="eyebrow">{{ artifact.build.project.name }}</span><h1>Complete compiler walkthrough</h1><p>Recorded application steps, English voice-over and captions.</p></div></div>
+<div class="walkthrough-layout"><section class="panel padded">
+<video id="walkthrough-video" controls playsinline preload="auto" aria-label="Compiler walkthrough with narration">
+<source src="{% url 'artifact-stream' artifact.pk %}" type="video/mp4">
+{% if captions %}<track src="{% url 'artifact-stream' captions.pk %}" kind="captions" srclang="en" label="English" default>{% endif %}
+Your browser cannot play this video. Use Download video below.
+</video>
+<button id="walkthrough-play" class="button" type="button">Play with voice-over</button>
+<p id="walkthrough-status" role="status">Loading video… Press Play to start with sound.</p>
+<p><a href="{% url 'artifact-download' artifact.pk %}">Download video</a> · <a href="{% url 'build-detail' artifact.build_id %}">View build evidence and transcript</a></p>
+</section><aside class="panel padded walkthrough-chapters" aria-label="Video chapters"><h2>Every step</h2>
+{% for chapter in chapters %}<button class="walkthrough-chapter" type="button" data-time="{{ chapter.start }}">{{ forloop.counter }}. {{ chapter.title }}</button>{% empty %}<p>Use the video timeline to seek.</p>{% endfor %}
+</aside></div>
+<p>Physical board programming was not performed. The X2 candidate and FABulous reference build are separate from the Linear model flow.</p>
+<script src="{% static 'media-player.js' %}" defer></script>
+{% endblock %}

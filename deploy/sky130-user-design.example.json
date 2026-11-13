@@ -1,0 +1,10 @@
+{
+  "schema": "bmlabs.sky130-toolchain.v1",
+  "revision": "e0790eb11a1e95914f2beb8f175396a0924144ed",
+  "distro": "YOUR_EDA_WSL_DISTRIBUTION",
+  "user": "YOUR_LINUX_BUILD_USER",
+  "repository": "/absolute/path/to/sky130-reram-fpga",
+  "tool_path": "/nix/store/REPLACE_WITH_ACTUAL_NEXTPNR/bin:/nix/store/REPLACE_WITH_ACTUAL_YOSYS/bin:/nix/store/REPLACE_WITH_ACTUAL_PYTHON_ENV/bin:/usr/bin:/bin",
+  "nextpnr_revision": "3e53a0bf44d13c0de603dd089a323ea85d67d4ef",
+  "physical_programming_enabled": false
+}

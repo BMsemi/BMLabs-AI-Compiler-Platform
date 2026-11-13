@@ -1,0 +1,1 @@
+{% extends 'accounts/base.html' %}{% block content %}<h2>{{ title }}</h2><p>{{ text }}</p><a class="button primary" href="{% url 'login' %}">Back to sign in</a><p><a href="{% url 'resend-verification' %}">Request a verification link</a></p>{% endblock %}

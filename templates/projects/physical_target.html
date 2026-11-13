@@ -1,0 +1,13 @@
+{% if project.target.resources.kind == 'physical_board' %}
+<section class="panel padded spaced"><h2>Physical target configuration</h2>
+<dl><dt>Board</dt><dd>{{ project.target.resources.board }}</dd>
+<dt>Connection</dt><dd>{{ project.target.resources.port }} · {{ project.target.resources.baud }} baud</dd>
+<dt>Installed overlay</dt><dd>Qwen6 · <span class="mono">{{ project.target.resources.overlay_sha256|slice:':12' }}</span></dd>
+<dt>PL clock</dt><dd>{{ project.target.constraints.pl_clock_mhz }} MHz (existing overlay)</dd>
+<dt>Execution scope</dt><dd>{{ project.target.resources.scope }}</dd></dl>
+<p>Connect and power the configured ZCU106. Run the complete FPGA workflow to capture IR, generate and verify Verilog, synthesize and check equivalence, program the pinned overlay, and compare real hardware outputs with the independent reference. Each stage saves its commands, logs and artifacts. The FPGA performs signed int8 matrix multiplication; its processor applies bias and ReLU. A disconnected board or failed comparison fails the build.</p>
+<p>This version uses the installed Qwen6 overlay and its pinned driver ABI. It does not load a newly generated FABulous configuration or finalize the BM ASIC contract.</p>
+{% if user.is_superuser and editable %}<form method="post" action="{% url 'project-build' project.pk %}">{% csrf_token %}<input type="hidden" name="pipeline" value="linear-fpga-v1"><input type="hidden" name="entrypoint" value="model.py"><button class="button primary" type="submit">Compile, program FPGA &amp; verify</button></form>{% endif %}
+{% if user.is_superuser and editable %}<form method="post" action="{% url 'project-build' project.pk %}">{% csrf_token %}<input type="hidden" name="pipeline" value="zcu106-preflight-v1"><button class="button secondary" type="submit">Check physical board connection</button></form>{% endif %}
+</section>
+{% endif %}

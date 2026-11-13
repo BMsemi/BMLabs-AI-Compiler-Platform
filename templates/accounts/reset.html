@@ -1,0 +1,1 @@
+{% extends 'accounts/base.html' %}{% block content %}<h2>Reset your password</h2><p>Enter your account email to receive a secure reset link.</p><form method="post">{% csrf_token %}{% include 'form_fields.html' %}<button class="button primary">Send reset instructions</button></form><p><a href="{% url 'login' %}">Back to sign in</a></p>{% endblock %}

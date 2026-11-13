@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load ui %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block breadcrumb %}Projects / {{ project.name }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">{{ project.organization|default:'PERSONAL WORKSPACE' }}</span><h1>{{ project.name }}</h1><p>{{ project.description|default:'Add a description in project settings.' }}</p></div>
+<div class="form-actions">{% if editable %}<a class="button secondary" href="{% url 'project-edit' project.pk %}">{% icon 'settings' %}Settings</a>
+<form method="post" action="{% url 'project-build' project.pk %}">{% csrf_token %}
+<select name="pipeline" aria-label="Compiler pipeline">
+{% if user.is_superuser and project.target.resources.kind == 'physical_board' %}<option value="linear-fpga-v1">Complete workflow: compile → program FPGA → verify</option>{% endif %}
+<option value="linear-int8-v1">Linear RTL verification</option><option value="linear-synth-v1">Linear synthesis + equivalence</option><option value="x2-candidate-v1">Candidate X2 regression</option><option value="fabulous-reference-v1">FABulous reference bitstream + simulation</option>
+{% if user.is_superuser %}<option value="sky130-counter-v1">SKY130 ReRAM fabric: upstream counter bitstream (compile only)</option>{% endif %}
+</select><input name="entrypoint" value="model.py" aria-label="Source filename" maxlength="255"><button class="button primary">{% icon 'terminal' %}Run selected pipeline</button></form>{% endif %}</div></div>
+<div class="notice info">{% if project.archived %}This project is archived and read only.{% else %}Upload model.py containing the supported literal MODEL specification. The complete FPGA workflow captures IR, maps the logical 32×32 PE, verifies RTL and synthesis, programs the pinned Qwen6 overlay and checks real model outputs. The FPGA performs MVM; its processor applies bias and ReLU. The SKY130 ReRAM workflow compiles the upstream counter example for its supplied fabric. It does not use model.py or program the ZCU106; board loading and timing validation for that fabric remain separate steps.{% endif %}</div>
+<div class="two-column"><section class="panel"><div class="section-heading"><h2>Source &amp; model files</h2><span class="badge neutral">{{ project.files.count }} FILES</span></div>
+<div class="table-wrap"><table><thead><tr><th>File</th><th>Size</th><th>Integrity</th><th></th></tr></thead><tbody>{% for file in project.files.all %}<tr><td><div class="file-name">{% icon 'file' %}{{ file.name }}</div><small>{{ file.created_at|date:'d M Y, H:i' }}</small></td><td>{{ file.size|filesizeformat }}</td><td><code title="{{ file.sha256 }}">{{ file.sha256|slice:':12' }}…</code></td><td><a href="{% url 'file-download' file.pk %}">Download</a></td></tr>{% empty %}<tr><td colspan="4"><div class="empty-state compact"><h3>No files uploaded</h3><p>Add Python source, a model or configuration to begin.</p></div></td></tr>{% endfor %}</tbody></table></div>
+{% if editable %}<div class="upload-box"><form method="post" action="{% url 'project-upload' project.pk %}" enctype="multipart/form-data">{% csrf_token %}{% include 'form_fields.html' with form=upload_form %}<button class="button secondary">Upload file</button></form><small>Files are private. MODEL literals are parsed as data; uploaded Python code is not executed.</small></div>{% endif %}</section>
+<section class="panel padded fit"><h2>Project configuration</h2><dl><dt>Project ID</dt><dd class="mono">{{ project.pk }}</dd><dt>Owner</dt><dd>{{ project.owner.full_name }}</dd><dt>Hardware target</dt><dd>{{ project.target|default:'Not selected' }}</dd><dt>Logical PE geometry</dt><dd>32 input rows × 32 output columns</dd><dt>X2 ABI</dt><dd>Qwen6 pinned overlay for physical execution; final ASIC ABI unfinalized</dd><dt>Compiler</dt><dd>Linear int8 → Verilog → Icarus → Yosys → FPGA</dd><dt>Created</dt><dd>{{ project.created_at|date:'d M Y' }}</dd></dl>{% if manageable %}<a class="text-button danger" href="{% url 'project-archive' project.pk %}">{% if project.archived %}Restore project{% else %}Archive project{% endif %}</a>{% endif %}</section></div>
+{% include 'projects/physical_target.html' %}
+<section class="panel padded spaced"><h2>Supported model.py example</h2><p>Signed int8 inputs and quantized weights; signed int32 accumulator outputs. Bias is in accumulator units.</p><pre>MODEL = {
+    'schema': 'bmlabs.linear-int8.v1',
+    'weights': [[1, -2, 3, 0], [-4, 1, 0, 2], [2, 2, -1, 1], [0, -3, 1, 4]],
+    'bias': [3, -7, 0, 11],
+    'relu': True,
+}</pre></section>
+<section class="panel spaced"><div class="section-heading"><h2>Build history</h2></div><div class="table-wrap"><table><thead><tr><th>Build</th><th>Pipeline</th><th>Status</th><th>Requested</th></tr></thead><tbody>{% for job in project.builds.all %}<tr><td><a class="mono" href="{% url 'build-detail' job.pk %}">{{ job.pk|stringformat:'s'|slice:':8' }}</a></td><td>{{ job.compiler_version }}</td><td><span class="badge {% if job.status == 'succeeded' %}success{% elif job.status == 'failed' %}danger{% else %}warning{% endif %}">{{ job.get_status_display }}</span></td><td>{{ job.created_at|date:'d M Y, H:i' }}</td></tr>{% empty %}<tr><td colspan="4">No builds yet.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
